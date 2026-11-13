@@ -1,0 +1,593 @@
+% !TeX program = pdflatex
+% ============================================================================
+%  Mini-projet « Gas liquefaction (LNG) »
+%  Cycles L0 (Linde-Hampson) et L3 (Claude, turbo-détendeur)
+% ----------------------------------------------------------------------------
+%  Les blocs oranges « [ PLACEHOLDER : INSÉRER UNE CAPTURE D'ÉCRAN ICI ] »
+%  sont à remplacer par les captures d'écran du notebook. Pour insérer une
+%  capture, supprimer le bloc \placeholder{...}{...} correspondant et le
+%  remplacer par :
+%    \begin{figure}[H]
+%      \centering
+%      \includegraphics[width=0.85\linewidth]{figures/ma_capture.png}
+%      \caption{Légende.}
+%      \label{fig:ma_capture}
+%    \end{figure}
+%  (le package float est déjà chargé pour l'option [H]).
+% ============================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[french]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{xcolor}
+\usepackage{caption}
+\usepackage[hidelinks]{hyperref}
+
+% ---------------------------------------------------------------------------
+%  Boîte « placeholder » pour les captures d'écran du notebook.
+%  Usage : \placeholder{Titre court}{Description précise de la capture}
+% ---------------------------------------------------------------------------
+\definecolor{phbox}{RGB}{200,100,0}
+\definecolor{phfill}{RGB}{255,242,224}
+\newcommand{\placeholder}[2]{%
+  \begin{center}
+  \fcolorbox{phbox}{phfill}{%
+    \begin{minipage}{0.92\linewidth}
+      \centering
+      \vspace{1.6em}%
+      {\Large\bfseries\color{phbox}[ PLACEHOLDER : INSÉRER UNE CAPTURE D'ÉCRAN ICI ]}\\[0.7em]
+      {\bfseries #1}\\[0.4em]
+      {\small\itshape #2}%
+      \vspace{1.6em}%
+    \end{minipage}}%
+  \end{center}}
+
+\captionsetup{font=small,labelfont=bf}
+
+% ---------------------------------------------------------------------------
+%  Page de garde (tous les champs entre crochets sont à compléter)
+% ---------------------------------------------------------------------------
+\begin{document}
+
+\begin{titlepage}
+  \centering
+  \vspace*{2.5cm}
+  {\large [ Établissement / École ] \par}
+  \vspace{0.4cm}
+  {\large [ Cours / UE ] \par}
+  \vspace{2.5cm}
+  {\Huge\bfseries Liquéfaction du gaz naturel \par}
+  \vspace{0.8cm}
+  {\LARGE Du cycle de Linde-Hampson (L0) au cycle de Claude (L3) \par}
+  \vspace{0.5cm}
+  {\large Mini-projet « Gas liquefaction (LNG) » : conception et comparaison
+   de cycles de liquéfaction \par}
+  \vspace{2.5cm}
+  {\large\bfseries [ Prénom NOM 1 ] \par}
+  {\large\bfseries [ Prénom NOM 2 ] \par}
+  \vfill
+  {\large [ Date ] \par}
+  \vspace{1cm}
+\end{titlepage}
+
+% ===========================================================================
+\section*{Introduction}
+% ===========================================================================
+
+La liquéfaction du gaz naturel (LNG) consiste à refroidir le méthane en
+dessous de son point d'ébullition atmosphérique ($\approx -162\,^\circ$C à
+1~bar), ce qui réduit son volume d'un facteur $\approx 600$ et rend possible
+le stockage et le transport longue distance à grande échelle. Cette opération
+est énergétiquement coûteuse et repose sur deux effets : le refroidissement
+par détente de Joule-Thomson (un gaz réel se refroidit lorsqu'il est laminé
+d'une haute vers une basse pression) et la récupération, dans laquelle la
+vapeur froide non liquéfiée prérefroidit le gaz haute pression entrant.
+
+Ce rapport s'inscrit dans le mini-projet « Gas liquefaction (LNG) », dont le
+périmètre couvert ici est double : le cycle de base commun \textbf{L0}
+(cycle de Linde-Hampson, étudié par tous les groupes) et le cycle avancé
+\textbf{L3} (cycle de Claude avec turbo-détendeur). Les deux cycles sont
+résolus en \emph{mode conception}, c'est-à-dire à un unique point de
+fonctionnement en régime permanent, avec des propriétés de gaz réel
+(CoolProp) et la bibliothèque partagée \texttt{caldis}. L'objectif est une
+comparaison rigoureuse base/avancé à paramètres identiques, à l'aide des
+métriques communes : rendement de liquéfaction, travail spécifique, figure
+de mérite et surfaces d'échange.
+
+% ===========================================================================
+\section{Le cycle de référence L0 (Linde-Hampson)}
+% ===========================================================================
+
+\subsection{Architecture du système et hypothèses de modélisation}
+
+Le cycle L0, schématisé ci-dessous, est le cycle de liquéfaction
+récupératif le plus simple. Son fonctionnement est le suivant :
+\begin{enumerate}
+  \item le gaz d'appoint (méthane, $25\,^\circ$C, 1~bar) est mélangé à la
+        vapeur recyclée dans un mélangeur ;
+  \item le mélange est comprimé de 1 à 100~bar en quatre étages de rapport
+        égal $r \approx 3{,}16$ ($1 \to 3{,}16 \to 10 \to 31{,}6 \to
+        100$~bar), avec refroidissement à $T_0 + 5$~K $= 30\,^\circ$C entre
+        chaque étage (intercoolers) et après le dernier étage (aftercooler),
+        le rendement isentropique de chaque étage étant $\eta_{is} = 0{,}75$ ;
+  \item le gaz haute pression est prérefroidi dans le récupérateur à
+        contre-courant par la vapeur froide de retour (côté chaud : 100~bar ;
+        côté froid : 1~bar ; coefficients de film $1000$ et $500$~W\,m$^{-2}$\,K$^{-1}$,
+        ratio d'aires 1:1) ;
+  \item il est ensuite laminé de 100 à 1~bar à travers la vanne
+        Joule-Thomson (détente isenthalpique), ce qui produit un mélange
+        diphasique ;
+  \item le ballon de flash à 1~bar sépare le liquide saturé, soutiré comme
+        produit ($\dot m_{liq} = 1$~kg/s, $\approx -162\,^\circ$C), de la
+        vapeur saturée, qui traverse le récupérateur côté froid puis est
+        recyclée à l'aspiration du compresseur.
+\end{enumerate}
+
+\placeholder{Schéma du cycle L0 (Linde-Hampson)}{Copier ici la figure
+« The baseline cycle -- L0 » de l'énoncé (section 3), ou le schéma équivalent
+dessiné dans le notebook. La flèche du gaz d'appoint, la boucle de vapeur
+recyclée et les quatre étages de compression doivent être visibles.}
+
+Les hypothèses de modélisation, communes à tous les cycles du projet, sont
+les suivantes :
+\begin{itemize}
+  \item résolution en régime permanent, en mode conception uniquement (aucun
+        mode simulation) ;
+  \item propriétés de gaz réel (CoolProp) obligatoires : l'effet
+        Joule-Thomson disparaît pour un gaz parfait, il est donc impossible
+        de liquéfier un gaz idéal ;
+  \item le récupérateur est modélisé par un échangeur \emph{mono-zone}
+        (\texttt{SizingHX}) à $c_p$ constant ; le pincement de 5~K est imposé
+        à un seul terminal, choisi selon le critère des taux de capacité
+        (section~\ref{sec:pinch_L0}), et le minimum interne est vérifié
+        \emph{a posteriori} ;
+  \item seuls les récupérateurs sont dimensionnés en surface d'échange ; les
+        inter/after-coolers sont de simples puissances thermiques ;
+  \item bilan massique stationnaire : le débit d'appoint compense
+        exactement le produit liquide, la vapeur non liquéfiée est recyclée.
+\end{itemize}
+
+Enfin, la boucle de recyclage fait du débit circulant une inconnue
+implicite : elle n'est connue qu'une fois le rendement de liquéfaction $y$
+résolu. Il s'agit d'un point fixe, initialisé avec $y_0 \approx 0{,}1$
+(soit un débit circulant $\approx 10\,\dot m_{liq}$), sur lequel le solveur
+converge.
+
+\subsection{Grandeurs suivies et métriques de comparaison}
+
+Les métriques sont évaluées au point de conception et définies comme suit.
+\\
+\\
+Le rendement de liquéfaction est la fraction du débit circulant liquéfiée à
+chaque passage :
+\begin{equation}
+  y = \frac{\dot m_{liq}}{\dot m_{circ}} .
+  \label{eq:yield}
+\end{equation}
+La puissance de compression est la somme sur les quatre étages, chacun
+caractérisé par son rendement isentropique
+\begin{equation}
+  \dot W_{comp} = \sum_{k=1}^{4} \dot m_{circ}\,\bigl(h_{k,s} - h_{k,e}\bigr),
+  \qquad
+  \eta_{is} = \frac{h_{2s} - h_1}{h_2 - h_1} = 0{,}75 ,
+  \label{eq:comp}
+\end{equation}
+où $h_{2s}$ est l'enthalpie de sortie isentropique de l'étage. 
+\\
+\\
+Le travail spécifique de liquéfaction, grandeur de référence du projet, est ramené au
+kilogramme de LNG produit :
+\begin{equation}
+  w = \frac{\dot W_{tot}}{\dot m_{liq}},
+  \qquad
+  \dot W_{tot} = \dot W_{comp} \quad \text{(cycle L0)} .
+  \label{eq:w}
+\end{equation}
+Il est comparé au travail minimal réversible de liquéfaction, obtenu en
+intégrant le premier et le second principes entre l'état d'alimentation
+($25\,^\circ$C, 1~bar) et le produit (liquide saturé, 1~bar), avec rejet de
+chaleur à $T_0$ :
+\begin{equation}
+  w_{min} = T_0\,\bigl(s_{feed} - s_{liq}\bigr)
+          - \bigl(h_{feed} - h_{liq}\bigr)
+          \approx 1083~\text{kJ/kg} \quad \text{(méthane)} ,
+  \label{eq:wmin}
+\end{equation}
+ce qui définit la figure de mérite
+\begin{equation}
+  \mathrm{FOM} = \frac{w_{min}}{w} .
+  \label{eq:fom}
+\end{equation}
+S'y ajoutent, pour le récupérateur uniquement : la surface d'échange
+($A$, $UA$) et la puissance échangée $\dot Q_{rec}$, issues de la
+résolution en conception. Enfin, un contrôle qualité systématique est
+effectué : la fermeture du bilan d'énergie du premier principe sur l'ensemble
+du cycle doit être nulle à la précision du solveur.
+
+\subsection{Le pincement du récupérateur : pourquoi l'imposer côté chaud}
+\label{sec:pinch_L0}
+
+Le récupérateur étant modélisé en une seule zone à $c_p$ constant, le
+pincement de 5~K ne peut être imposé qu'à \emph{un seul} des deux terminaux
+de l'échangeur à contre-courant : le bout chaud (entrée du flux chaud,
+sortie du flux froid) ou le bout froid (sortie du flux chaud, entrée du flux
+froid). Ce choix n'est pas libre : il est dicté par les taux de capacité des
+deux flux.
+
+Notons $C_h = (\dot m\, c_p)_h$ et $C_c = (\dot m\, c_p)_c$ les taux de
+capacité des flux chaud (haute pression) et froid (basse pression). Le bilan
+d'énergie global de l'échangeur et les écarts aux terminaux s'écrivent
+\begin{align}
+  \dot Q &= C_h\,\bigl(T_{h,e} - T_{h,s}\bigr)
+         = C_c\,\bigl(T_{c,s} - T_{c,e}\bigr), \label{eq:hx_balance}\\
+  \Delta T_{ch} &= T_{h,e} - T_{c,s},
+  \qquad
+  \Delta T_{fr} = T_{h,s} - T_{c,e}. \label{eq:hx_ends}
+\end{align}
+En soustrayant ces deux écarts et en utilisant \eqref{eq:hx_balance}, il
+vient
+\begin{equation}
+  \Delta T_{ch} - \Delta T_{fr}
+  = \dot Q \left( \frac{1}{C_h} - \frac{1}{C_c} \right)
+  = \dot Q\,\frac{C_c - C_h}{C_h\, C_c} .
+  \label{eq:pinch_criterion}
+\end{equation}
+Le signe de \eqref{eq:pinch_criterion} fixe le terminal porteur du pincement
+sans aucune ambiguïté :
+\begin{equation}
+  C_h > C_c \iff \Delta T_{ch} < \Delta T_{fr}
+  \quad\Longrightarrow\quad \text{pincement au bout chaud.}
+  \label{eq:pinch_rule}
+\end{equation}
+L'interprétation physique est la suivante : le flux de plus petit taux de
+capacité subit la plus grande excursion de température et « referme » l'écart
+avec l'autre flux ; le minimum d'approche se situe donc au bout où ce flux
+sort. Imposer le pincement au mauvais terminal produit un croisement des
+profils de température, c'est-à-dire un design physiquement infaisable.
+\\
+\\
+Pour le cycle L0, le critère \eqref{eq:pinch_rule} est nettement vérifié côté
+chaud : le flux chaud transporte \emph{la totalité} du débit circulant à
+100~bar (gaz dense, $c_p$ élevé), tandis que le flux froid ne transporte que
+la vapeur non liquéfiée, soit $(1-y)\,\dot m_{circ} \approx
+0{,}9\,\dot m_{circ}$ à 1~bar, avec un $c_p$ plus faible. On a donc $C_h >
+C_c$ : le pincement de 5~K est imposé au bout chaud par la contrainte
+\begin{equation}
+  T_{h,e} - T_{c,s} = 5~\text{K} .
+  \label{eq:pinch_constraint}
+\end{equation}
+Cette hypothèse est ensuite \emph{contrôlée a posteriori} : les profils de
+température des deux flux sont reconstruits point à point le long de
+l'échangeur (200 points, températures recalculées par CoolProp à partir des
+enthalpies et du bilan d'énergie local), et le minimum interne
+$\Delta T_{int} = \min (T_h - T_c)$ doit rester $\geq 5$~K. Pour L0, le
+minimum du profil reste confondu avec le bout chaud, l'écart au bout froid
+étant de l'ordre de 105~K : l'hypothèse est validée.
+
+\subsection{Résultats du point de base}
+\label{sec:resultats_L0}
+
+\placeholder{Sortie « RÉSULTATS L0 » du notebook (cellule de calcul des
+métriques)}{Copier la sortie console complète : rendement $y$, débit
+circulant, $\dot W_{comp}$, $w$, $w_{min}$, FOM, pincements bout chaud/bout
+froid, pincement interne minimal, fermeture du bilan d'énergie, surface
+$A$, $UA$ et $\dot Q$ du récupérateur.}
+
+Le point de base L0 confirme les ordres de grandeur attendus par l'énoncé
+(les valeurs exactes figurent sur la capture ci-dessus) :
+\begin{itemize}
+  \item rendement de liquéfaction $y \approx 9\,\%$, soit un débit circulant
+        $\dot m_{circ} \approx 10$ à 11~kg/s pour $\dot m_{liq} = 1$~kg/s ;
+  \item travail spécifique $w \approx 1{,}1 \times 10^{4}$~kJ/kg
+        ($\approx 3$ à 3{,}4~kWh par kg de LNG) ;
+  \item figure de mérite $\mathrm{FOM} \approx 9$ à 10~\% (avec
+        $w_{min} = 1083$~kJ/kg) ;
+  \item surface du récupérateur, $UA$ et puissance échangée : voir la capture
+        ci-dessous.
+\end{itemize}
+La fermeture du bilan d'énergie est vérifiée, et le pincement interne reste
+au bout chaud, comme prévu à la section~\ref{sec:pinch_L0}. Ce point
+constitue la référence à laquelle le cycle L3 sera comparé. On note dès
+maintenant une contre-vérification utile : le cycle L3 évalué à
+$x_e = 0{,}01$ (seul 1~\% du débit est dérivé vers le détendeur) est quasi
+identique à L0 et retrouve exactement ces valeurs
+(section~\ref{sec:resultats_L3}), ce qui conforte la cohérence des deux
+modèles.
+
+% ===========================================================================
+\section{Le cycle L3 : ajout d'une turbine de détente (cycle de Claude)}
+% ===========================================================================
+
+\subsection{Modification apportée au cycle de base}
+
+Le cycle L3, schématisé ci-dessous, reprend l'intégralité du cycle L0 et
+y ajoute trois composants : un séparateur (\emph{splitter}) placé à la sortie
+de l'aftercooler, une turbine de détente et un mélangeur en
+amont du ballon de flash. Son fonctionnement est le suivant :
+\begin{enumerate}
+  \item à la sortie de l'aftercooler (30~$^\circ$C, 100~bar), une fraction
+        $x_e$ du débit circulant est dérivée vers le turbo-détendeur, la
+        fraction complémentaire $1 - x_e$ poursuivant le chemin classique
+        (récupérateur puis vanne Joule-Thomson) ;
+  \item le turbo-détendeur détend ce flux de 100~bar à 1~bar avec un
+        rendement isentropique $\eta_{is} = 0{,}80$ ; parti de 30~$^\circ$C,
+        le gaz ressort en vapeur monophasée légèrement surchauffée
+        ($\approx -153\,^\circ$C soit $\approx 120$~K, à quelques kelvins de
+        la saturation à 1~bar, $T_{sat} = 111{,}7$~K) : la turbine reste
+        « sèche », sans aucune condensation interne ;
+  \item la sortie froide du détendeur est mélangée au flux laminé juste
+        avant le ballon de flash, dont la vapeur saturée rejoint, comme en
+        L0, le côté froid du récupérateur.
+\end{enumerate}
+La fraction détendue est imposée par la contrainte de débit du splitter,
+\begin{equation}
+  \dot m_{exp} = x_e \, \dot m_{circ},
+  \label{eq:split}
+\end{equation}
+et la puissance récupérée au détendeur, déduite du bilan enthalpique (indices
+$in$/$out$ pour l'entrée et la sortie réelle, $out,s$ pour la sortie
+isentropique),
+\begin{equation}
+  \dot W_{exp} = \dot m_{exp}\,\bigl(h_{in} - h_{out}\bigr),
+  \qquad
+  \eta_{is}^{exp} = \frac{h_{in} - h_{out}}{h_{in} - h_{out,s}} = 0{,}80 ,
+  \label{eq:expander}
+\end{equation}
+vient en déduction du travail total, conformément à la convention du projet :
+\begin{equation}
+  \dot W_{tot} = \dot W_{comp} - \dot W_{exp} .
+  \label{eq:w_L3}
+\end{equation}
+Le paramètre $x_e$ est la variable d'étude (valeur par défaut de l'énoncé :
+$x_e = 0{,}5$) ; $x_e = 0$ redonne exactement le cycle L0.
+
+\placeholder{Schéma du cycle L3 (Claude avec turbo-détendeur)}{Copier ici la
+figure « L3 -- Claude cycle (with expander) » de l'énoncé (section 4), ou le
+schéma équivalent. Le splitter après l'aftercooler, la turbine, le mélangeur
+avant le flash et la vanne JT sur la branche principale doivent être
+visibles.}
+
+\paragraph{Mise en \oe uvre numérique.}
+Conformément à la note numérique de l'énoncé, le cycle L3 ne peut pas être
+résolu directement à $x_e = 0{,}5$ : la résolution utilise une continuation
+en $x_e$. Le premier point $x_e = 0{,}01$ est initialisé à partir de la
+solution L0 (les 97 variables communes aux deux cycles sont recopiées, les
+24 nouvelles variables du splitter, du détendeur et du mélangeur étant
+initialisées à partir de l'état L0) ; chaque point suivant est ensuite
+résolu en \emph{warm-start} à partir du point déjà calculé le plus proche,
+dont la solution complète est archivée. La boucle de recyclage reste un
+point fixe, résolu à chaque $x_e$.
+
+\subsection{Intérêt attendu de la modification}
+
+L'ajout du turbo-détendeur présente \emph{a priori} trois bénéfices
+cumulatifs :
+\begin{enumerate}
+  \item \textbf{Récupération de travail} : la puissance
+        $\dot W_{exp}$ de \eqref{eq:expander} vient directement en
+        déduction de la puissance de compression
+        \eqref{eq:w_L3}, ce qui réduit le travail net.
+  \item \textbf{Un refroidissement bien plus efficace que la détente
+        laminée} : la vanne Joule-Thomson est isenthalpique (le gaz n'y perd
+        aucune enthalpie) alors que la turbine extrait du travail ; pour une
+        même chute de pression de 100 à 1~bar, l'enthalpie cédée au
+        détendeur se traduit par une température de sortie
+        bien plus basse. Depuis 30~$^\circ$C, la turbine livre une vapeur à
+        $\approx 120$~K, alors que la branche laminée doit d'abord être
+        prérefroidie par le récupérateur pour produire du liquide.
+  \item \textbf{Un effet en cascade sur le rendement de liquéfaction} :
+        l'injection de ce flux très froid dans le mélangeur situé avant le
+        flash abaisse l'enthalpie à l'entrée du ballon ; la fraction
+        liquéfiée $y$ augmente, donc le débit circulant
+        $\dot m_{circ} = \dot m_{liq}/y$ nécessaire pour produire 1~kg/s de
+        LNG diminue, et avec lui la puissance de compression. Le bénéfice
+        sur $y$ se propage ainsi à toute la chaîne de compression.
+\end{enumerate}
+L'effet attendu, annoncé par l'énoncé, est donc un meilleur refroidissement,
+un rendement de liquéfaction plus élevé, avec récupération de travail au
+détendeur.
+
+\subsection{Le côté du pincement devient un paramètre : méthode de choix}
+\label{sec:choix_pinch}
+
+En L3, l'hypothèse du pincement côté chaud, valable pour L0
+(section~\ref{sec:pinch_L0}), ne peut plus être postulée une fois pour
+toutes : le flux chaud du récupérateur ne transporte plus que la fraction
+$(1 - x_e)\,\dot m_{circ}$, de sorte que le taux de capacité $C_h$
+décroît lorsque $x_e$ augmente, tandis que le flux froid transporte toujours
+la vapeur de retour $(1 - y)\,\dot m_{circ}$. Le rapport $C_h/C_c$ évolue
+avec $x_e$ et le critère \eqref{eq:pinch_rule} doit être réévalué à chaque
+point du balayage. La situation est en outre compliquée par le fait que le
+$c_p$ du méthane varie fortement le long de l'échangeur (région
+pseudo-critique à 100~bar) : le rapport des taux de capacité doit donc être
+évalué \emph{à chaque terminal} (bout chaud et bout froid), et non
+globalement.
+
+La méthode mise en \oe uvre est une résolution à deux passes :
+\begin{enumerate}
+  \item \textbf{Première passe} : le pincement de 5~K est imposé côté chaud,
+        comme en L0, pour chaque valeur de $x_e$ (contrainte
+        \eqref{eq:pinch_constraint}) ; le profil interne de l'échangeur est
+        ensuite reconstruit \emph{a posteriori} et son minimum
+        $\Delta T_{int}$ comparé aux 5~K imposés.
+  \item \textbf{Deuxième passe} : pour chaque $x_e$, le système est résolu
+        deux fois, une fois avec le pincement imposé au bout chaud, une fois
+        au bout froid (chaque côté disposant de sa propre chaîne de
+        warm-starts) ; pour chaque candidat, le profil exact est recalculé
+        et la faisabilité est définie par $\Delta T_{int} \geq 5$~K. Le
+        design retenu est le candidat faisable ; si les deux le sont, on
+        retient celui dont le minimum interne est le plus proche de 5~K,
+        c'est-à-dire celui qui porte effectivement son pincement.
+\end{enumerate}
+Cette procédure garantit que le pincement imposé correspond au terminal
+réellement critique, sans croisement de température ni design optimiste.
+
+Un signal précurseur de la bascule est fourni par la première passe : l'écart
+au bout froid, très confortable en L0 ($\approx 105$~K), se referme
+progressivement lorsque $x_e$ augmente (tableau~\ref{tab:sweep}), signe que
+le flux chaud, dont le débit diminue, perd de son avance en taux de capacité
+et que le minimum d'approche migre progressivement du bout chaud vers
+l'intérieur puis vers le bout froid de l'échangeur.
+
+\subsection{Résultats du balayage en \texorpdfstring{$x_e$}{xe}}
+\label{sec:resultats_L3}
+
+Le tableau~\ref{tab:sweep} rassemble les résultats de la première passe
+(pincement imposé au bout chaud) pour $x_e$ croissant de 0{,}01 à 0{,}50, à
+produit liquide constant $\dot m_{liq} = 1$~kg/s.
+
+\begin{table}[H]
+  \centering
+  \caption{Résultats du cycle L3 en fonction de la fraction détendue $x_e$
+  (première passe : pincement de 5~K imposé au bout chaud ;
+  $\dot m_{liq} = 1$~kg/s ; $\eta_{is}^{exp} = 0{,}80$). $\Delta T_{fr}$ est
+  l'écart au bout froid et $\Delta T_{int}$ le minimum interne du profil
+  reconstruit \emph{a posteriori}.}
+  \label{tab:sweep}
+  \small
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{ccccccccc}
+    \toprule
+    $x_e$ & $y$ & $\dot m_{circ}$ & $\dot W_{comp}$ & $\dot W_{exp}$ &
+    $w$ & FOM & $\Delta T_{fr}$ & $\Delta T_{int}$ \\
+     & (\%) & (kg/s) & (MW) & (MW) & (kJ/kg) & (\%) & (K) & (K) \\
+    \midrule
+    0,01 & 9,68  & 10,33 & 11,16 & 0,03 & 11\,132 & 9,7  & 105,1 & 5,00 \\
+    0,05 & 10,97 & 9,11  & 9,85  & 0,13 & 9\,711  & 11,2 & 103,6 & 5,00 \\
+    0,10 & 12,59 & 7,94  & 8,58  & 0,23 & 8\,346  & 13,0 & 101,6 & 5,00 \\
+    0,15 & 14,21 & 7,04  & 7,60  & 0,31 & 7\,292  & 14,9 & 99,2  & 5,00 \\
+    0,20 & 15,83 & 6,32  & 6,83  & 0,37 & 6\,453  & 16,8 & 96,5  & 5,00 \\
+    0,30 & 19,06 & 5,25  & 5,67  & 0,46 & 5\,203  & 20,8 & 89,2  & 5,00 \\
+    0,40 & 22,30 & 4,48  & 4,84  & 0,53 & 4\,316  & 25,1 & 78,1  & 5,00 \\
+    0,50 & 25,54 & 3,92  & 4,23  & 0,58 & 3\,653  & 29,6 & 59,9  & 3,60$^{\dagger}$ \\
+    \bottomrule
+  \end{tabular}\\[0.2em]
+  {\footnotesize $^{\dagger}$ pincement interne violé ($\Delta T_{int} <
+  5$~K) : design infaisable en l'état, voir le texte.}
+\end{table}
+
+\placeholder{Tableau de synthèse du notebook (DataFrame du balayage
+\texttt{xe})}{Copier le tableau du notebook affichant, pour chaque $x_e$ :
+$y$, $\dot m_{circ}$, $\dot W_{comp}$, $\dot W_{exp}$, $\dot W_{tot}$, $w$,
+FOM, $\Delta T_{int}$ (et la surface $A$ si disponible).}
+
+Trois enseignements se dégagent.
+
+\paragraph{Le point $x_e = 0{,}01$ valide le modèle.}
+Avec seulement 1~\% du débit détendu, le cycle L3 est quasi identique à L0 :
+$y = 9{,}68\,\%$, $w = 11\,132$~kJ/kg, $\mathrm{FOM} = 9{,}7\,\%$, soit les
+valeurs du cycle de base à l'initialisation près : c'est la contre-vérification
+annoncée à la section~\ref{sec:resultats_L0}.
+
+\paragraph{L'effet attendu est confirmé et il est spectaculaire.}
+Lorsque $x_e$ croît de 0{,}01 à 0{,}40, le rendement de liquéfaction passe de
+9{,}7~\% à 22{,}3~\% (facteur $\approx 2{,}3$), le débit circulant chute de
+10{,}3 à 4{,}5~kg/s, et le travail spécifique tombe de 11\,132 à
+4\,316~kJ/kg, soit une réduction de 61~\% par rapport au point de base L0
+(1,20~kWh/kg contre 3,09). La figure de mérite est multipliée par 2{,}6,
+de 9{,}7~\% à 25{,}1~\%. La décomposition du bilan
+(tableau~\ref{tab:sweep}) montre que la récupération de travail du
+détendeur, bien que réelle ($\dot W_{exp}$ croît de 0{,}03 à 0{,}53~MW),
+reste un effet du second ordre : au point $x_e = 0{,}4$, elle ne représente
+qu'environ 11~\% de la puissance de compression. L'essentiel du gain provient
+donc de l'effet en cascade décrit en section~2.2 : l'apport de froid de la
+branche détendue au mélangeur du flash augmente $y$, ce qui réduit le débit
+circulant et donc la puissance à comprimer.
+
+\paragraph{La faisabilité du pincement limite le gain.}
+Jusqu'à $x_e = 0{,}40$, le minimum interne du profil reste confondu avec le
+pincement imposé au bout chaud ($\Delta T_{int} = 5{,}00$~K) : les designs
+sont physiquement faisables. Au point $x_e = 0{,}50$, en revanche, la
+reconstruction \emph{a posteriori} révèle un minimum interne de
+$\Delta T_{int} = 3{,}60$~K $< 5$~K, tandis que l'écart au bout froid s'est
+refermé à 59{,}9~K : le minimum d'approche a migré \emph{à l'intérieur} de
+l'échangeur. Le design « pincement chaud » devient alors optimiste (le
+modèle mono-zone à $c_p$ constant sous-estime l'écart réel près de la
+région pseudo-critique du méthane), et le point $x_e = 0{,}50$ du
+tableau~\ref{tab:sweep} doit être considéré comme infaisable en l'état.
+Conformément à la méthode de la section~\ref{sec:choix_pinch}, la poursuite
+du balayage au-delà de $x_e \approx 0{,}4$ doit donc être menée en imposant
+le pincement au bout froid, le rapport des taux de capacité au bout chaud
+étant alors passé sous l'unité.
+
+\placeholder{Figure 2$\times$2 du notebook : $y$, $w$, FOM et
+$\Delta T_{int}$ en fonction de $x_e$}{Copier le graphique en quatre
+panneaux du notebook (tracé du DataFrame du balayage). Les points où le
+pincement interne est violé y figurent entourés en rouge : vérifier que
+seul $x_e = 0{,}5$ l'est.}
+
+\placeholder{Diagrammes $T$--$Q$ et profils $\Delta T$ du récupérateur
+(fonction \texttt{plot\_hx})}{Copier le tracé à gauche : profils $T_h$ et
+$T_c$ en fonction de la chaleur cumulée à $x_e = 0{,}5$ ; et à droite :
+$\Delta T(Q)$ le long du récupérateur pour plusieurs $x_e$ (0,3 / 0,4 /
+0,5 / 0,6), avec les lignes de référence à 5~K et 0~K. Le creux sous 5~K
+à $x_e = 0{,}5$ doit être visible.}
+
+\placeholder{Résultats de la passe à deux côtés (tableau et figure de
+bascule des taux de capacité)}{Copier : (i) le tableau du notebook avec, pour
+chaque $x_e$, le côté retenu (chaud/froid), la faisabilité, $y$, $w$, FOM,
+$\Delta T_{int}$ et les rapports $\dot m c_p$ aux deux bouts ; (ii) la figure
+du rapport $\dot m c_p_{hot}/\dot m c_p_{cold}$ au bout chaud et au bout
+froid en fonction de $x_e$, montrant la bascule sous l'unité.}
+
+\subsection{Discussion}
+
+\paragraph{Comparaison base / avancé.}
+Au dernier point pleinement faisable de la première passe ($x_e = 0{,}40$),
+le cycle de Claude divise par 2{,}6 le travail spécifique de liquéfaction par
+rapport au Linde-Hampson ($4\,316$ contre $\approx 11\,100$~kJ/kg) et
+multiplie la figure de mérite par 2{,}6 (25{,}1~\% contre 9{,}7~\%), pour un
+rendement de liquéfaction lui aussi multiplié par 2{,}3. La comparaison
+confirme l'intérêt du détendeur, avec la nuance quantitative importante que
+la récupération de travail n'est pas le mécanisme dominant : c'est l'effet
+thermique de la détente avec travail, via l'augmentation de $y$, qui porte
+le gain.
+
+\paragraph{Limites du modèle.}
+Le modèle mono-zone à $c_p$ constant du récupérateur est une approximation
+explicitement assumée (hypothèse C de l'énoncé), dont l'optimisme se
+manifeste précisément pour L3, où les deux courbes $T(h)$ se resserrent :
+la vérification \emph{a posteriori} du pincement interne n'est donc pas un
+contrôle de forme mais une étape constitutive de la conception. Les valeurs
+du point $x_e = 0{,}50$ (FOM $\approx 29{,}6\,\%$) sont à considérer comme
+une borne optimiste tant que le design correspondant n'a pas été résolu avec
+le pincement côté froid et vérifié.
+
+\paragraph{Perspectives.}
+Trois prolongements naturels : (i) un balayage fin entre $x_e = 0{,}40$ et
+0{,}50 pour localiser précisément la bascule du pincement ; (ii) la
+poursuite du balayage $x_e > 0{,}5$ avec la méthode à deux côtés, afin de
+déterminer le $x_e$ optimal du cycle ; (iii) l'optimisation conjointe de
+$x_e$ et de la haute pression $P_{high}$, tous deux cités par l'énoncé comme
+paramètres d'optimisation.
+
+% ===========================================================================
+\section*{Conclusion}
+% ===========================================================================
+
+Ce rapport a modélisé et comparé, en mode conception et avec des propriétés
+de gaz réel, le cycle de base L0 (Linde-Hampson) et le cycle avancé L3
+(Claude avec turbo-détendeur) pour la liquéfaction d'un débit de 1~kg/s de
+méthane. Le cycle L0, dont le pincement de récupérateur est imposé au bout
+chaud en vertu du critère des taux de capacité
+\eqref{eq:pinch_rule}, atteint les valeurs de référence attendues :
+$y \approx 9\,\%$, $w \approx 1{,}1 \times 10^{4}$~kJ/kg, FOM
+$\approx 9$ à 10~\%. L'ajout d'un turbo-détendeur dérivant une fraction
+$x_e$ du débit haute pression améliore très nettement ces grandeurs : à
+$x_e = 0{,}40$, le travail spécifique est réduit de 61~\% et la figure de
+mérite atteint 25{,}1~\%, l'essentiel du gain provenant de l'augmentation du
+rendement de liquéfaction plutôt que de la récupération de travail elle-même.
+Le contrôle \emph{a posteriori} des profils de température du récupérateur
+s'est révélé décisif : au-delà de $x_e \approx 0{,}4$, le pincement migre de
+l'extrémité chaude vers l'intérieur de l'échangeur, rendant les designs
+« pincement chaud » infaisables et imposant une méthode systématique de choix
+du côté du pincement, appliquée sur l'ensemble du balayage.
+
+\end{document}
